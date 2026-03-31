@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HACCP Officina 17</title>
+
+<style>
+body { font-family: Arial; background:#f4f4f4; margin:0; }
+.container { max-width:900px; margin:auto; padding:20px; background:white; }
+h1,h2 { color:#333; }
+.hidden { display:none; }
+input, select { padding:8px; margin:5px 0; width:100%; }
+button { padding:10px; margin-top:10px; width:100%; background:#333; color:white; border:none; }
+.card { background:#fafafa; padding:10px; margin-top:10px; border:1px solid #ddd; }
+.ok { color:green; }
+.warn { color:red; font-weight:bold; }
+</style>
+
+</head>
+<body>
+
+<div class="container">
+
+<h1>HACCP Officina 17</h1>
+
+<!-- LOGIN -->
+<div id="login">
+  <h2>Accesso</h2>
+  <input type="password" id="pin" placeholder="PIN">
+  <button onclick="login()">Accedi</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+
+  <h2>Dashboard</h2>
+  <div id="stato"></div>
+
+  <h2>Temperature</h2>
+
+  <select id="frigo">
+    <option>Frigo bar</option>
+    <option>Vetrina frollatura</option>
+    <option>Frigo 1</option>
+    <option>Frigo 2</option>
+    <option>Congelatore</option>
+  </select>
+
+  <input type="number" id="temp" placeholder="Temperatura">
+  <button onclick="salvaTemp()">Salva temperatura</button>
+
+  <h2>Pulizie</h2>
+  <input id="pulizia" placeholder="Descrizione">
+  <button onclick="salvaPulizia()">Salva</button>
+
+  <h2>Ricevimento merci</h2>
+  <input id="merce" placeholder="Fornitore / lotto">
+  <button onclick="salvaMerce()">Salva</button>
+
+  <h2>Non conformità</h2>
+  <input id="nc" placeholder="Descrizione">
+  <button onclick="salvaNC()">Salva</button>
+
+  <h2>Firma operatore</h2>
+  <input id="firma" placeholder="Nome operatore">
+  <button onclick="salvaFirma()">Firma</button>
+
+  <h2>Registro</h2>
+  <div id="registro"></div>
+
+  <button onclick="exportPDF()">Esporta PDF HACCP</button>
+
+</div>
+
+</div>
+
+<script>
+
+const PIN = "5777";
+
+let dati = JSON.parse(localStorage.getItem("haccp")) || [];
+
+/* LOGIN */
+function login(){
+  if(document.getElementById("pin").value === PIN){
+    document.getElementById("login").style.display = "none";
+    document.getElementById("app").classList.remove("hidden");
+    aggiorna();
+  } else {
+    alert("PIN errato");
+  }
+}
+
+/* SALVATAGGIO */
+function salva(){
+  localStorage.setItem("haccp", JSON.stringify(dati));
+}
+
+/* TEMPERATURE */
+function salvaTemp(){
+
+  let frigo = document.getElementById("frigo").value;
+  let temp = parseFloat(document.getElementById("temp").value);
+
+  let stato = "OK";
+
+  // SOGLIE HACCP
+  if(frigo !== "Congelatore"){
+    if(temp < 0 || temp > 4){
+      stato = "NON CONFORME";
+    }
+  } else {
+    if(temp > -18){
+      stato = "NON CONFORME";
+    }
+  }
+
+  dati.push({
+    tipo:"temperatura",
+    frigo: frigo,
+    valore: temp,
+    stato: stato,
+    data: new Date().toLocaleString()
+  });
+
+  salva();
+  aggiorna();
+}
+
+/* PULIZIA */
+function salvaPulizia(){
+
+  dati.push({
+    tipo:"pulizia",
+    descrizione: document.getElementById("pulizia").value,
+    data:new Date().toLocaleString()
+  });
+
+  salva();
+  aggiorna();
+}
+
+/* MERCE */
+function salvaMerce(){
+
+  dati.push({
+    tipo:"merce",
+    descrizione: document.getElementById("merce").value,
+    data:new Date().toLocaleString()
+  });
+
+  salva();
+  aggiorna();
+}
+
+/* NON CONFORMITA */
+function salvaNC(){
+
+  dati.push({
+    tipo:"nonconformita",
+    descrizione: document.getElementById("nc").value,
+    data:new Date().toLocaleString()
+  });
+
+  salva();
+  aggiorna();
+}
+
+/* FIRMA */
+function salvaFirma(){
+
+  dati.push({
+    tipo:"firma",
+    nome: document.getElementById("firma").value,
+    data:new Date().toLocaleString()
+  });
+
+  salva();
+  aggiorna();
+}
+
+/* AGGIORNA DASHBOARD */
+function aggiorna(){
+
+  let html = "";
+
+  let ultimi = dati.slice(-15).reverse();
+
+  ultimi.forEach(d=>{
+    let color = (d.stato === "NON CONFORME") ? "warn" : "ok";
+
+    html += `
+      <div class="card ${color}">
+        <b>${d.tipo.toUpperCase()}</b><br>
+        ${d.data}<br>
+        ${d.frigo || ""} ${d.valore || ""} ${d.stato || ""}<br>
+        ${d.descrizione || ""} ${d.nome || ""}
+      </div>
+    `;
+  });
+
+  document.getElementById("registro").innerHTML = html;
+
+  let alert = dati.filter(d => d.tipo==="temperatura" && d.stato==="NON CONFORME");
+
+  document.getElementById("stato").innerHTML =
+    alert.length > 0
+      ? "<span class='warn'>⚠ ATTENZIONE: anomalie rilevate</span>"
+      : "<span class='ok'>✓ TUTTO OK</span>";
+}
+
+/* PDF SEMPLICE */
+function exportPDF(){
+
+  let testo = "HACCP OFFICINA 17\n\n";
+
+  dati.forEach(d=>{
+    testo += JSON.stringify(d) + "\n";
+  });
+
+  let blob = new Blob([testo], {type:"application/pdf"});
+  let url = URL.createObjectURL(blob);
+
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = "HACCP_OFFICINA17.pdf";
+  a.click();
+}
+
+</script>
+
+</body>
+</html>
